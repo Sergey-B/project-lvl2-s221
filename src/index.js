@@ -1,35 +1,68 @@
 import _ from 'lodash';
+import fs from 'fs';
+import yaml from 'js-yaml';
+import ini from 'ini';
 
-const gendiff = (firstConfig, secondConfig) => {
-  const diffObject = _.union(_.keys(firstConfig), _.keys(secondConfig))
-    .reduce((acc, key) => {
-      if (firstConfig[key] === secondConfig[key]) {
-        return acc.concat([['unchanged', key, firstConfig[key]]]);
-      }
+const readConfig = path => fs.readFileSync(path, 'utf8');
 
-      if (firstConfig[key] && !secondConfig[key]) {
-        return acc.concat([['-', key, firstConfig[key]]]);
-      }
+const parseFunction = (path) => {
+  const [, extension] = path.split('.');
 
-      if (!firstConfig[key] && secondConfig[key]) {
-        return acc.concat([['+', key, secondConfig[key]]]);
-      }
+  const parseFunctions = {
+    json: jsonString => JSON.parse(jsonString),
+    yaml: yamlString => yaml.safeLoad(yamlString),
+    ini: iniString => ini.decode(iniString),
+  };
 
-      if (firstConfig[key] !== secondConfig[key]) {
-        return acc.concat(
-          [['+', key, secondConfig[key]]],
-          [['-', key, firstConfig[key]]],
-        );
-      }
+  return parseFunctions[extension];
+};
 
-      return acc;
-    }, []);
+const parseConfig = (string, parseFn) => parseFn(string);
 
-  return `{\n${
-    diffObject
-      .map(el => `  ${el[0] === 'unchanged' ? ' ' : el[0]} ${el[1]}: ${el[2]}`)
-      .join('\n')
-  }\n}\n`;
+const buildDiff = (obj1, obj2) => {
+  const result = _.union(_.keys(obj1), _.keys(obj2)).reduce((acc, key) => {
+    if (obj1[key] === obj2[key]) {
+      const newAcc = acc.concat([`   ${key}: ${obj1[key]}`]);
+      return newAcc;
+    }
+
+    if (obj1[key] && !obj2[key]) {
+      const newAcc = acc.concat([`  - ${key}: ${obj1[key]}`]);
+      return newAcc;
+    }
+
+    if (!obj1[key] && obj2[key]) {
+      const newAcc = acc.concat([`  + ${key}: ${obj2[key]}`]);
+      return newAcc;
+    }
+
+    if (obj1[key] !== obj2[key]) {
+      const newAcc = acc.concat(
+        [`  + ${key}: ${obj2[key]}`],
+        [`  - ${key}: ${obj1[key]}`],
+      );
+      return newAcc;
+    }
+
+    return acc;
+  }, []);
+
+  return result;
+};
+
+const buildOutput = diffObject => `{\n ${diffObject.join('\n')}\n}\n`;
+
+const gendiff = (path1, path2) => {
+  const string1 = readConfig(path1);
+  const string2 = readConfig(path2);
+
+  const configObject1 = parseConfig(string1, parseFunction(path1));
+  const configObject2 = parseConfig(string2, parseFunction(path2));
+
+  const diffObject = buildDiff(configObject1, configObject2);
+
+  const output = buildOutput(diffObject);
+  return output;
 };
 
 export default gendiff;
