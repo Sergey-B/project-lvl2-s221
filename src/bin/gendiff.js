@@ -1,6 +1,7 @@
 #! /usr/bin/env node
 
 import fs from 'fs';
+import yaml from 'js-yaml';
 import program from 'commander';
 import { version } from '../../package.json';
 import gendiff from '..';
@@ -11,10 +12,17 @@ program
   .option('-f, --format [type]', 'Output format')
   .arguments('<firstConfig> <secondConfig>')
   .action((firstConfig, secondConfig) => {
-    const firstConfigObject = JSON.parse(fs.readFileSync(firstConfig));
-    const secondConfigObject = JSON.parse(fs.readFileSync(secondConfig));
+    const configFormat = firstConfig.split('.').pop();
 
-    console.log(gendiff(firstConfigObject, secondConfigObject));
+    const configActions = {
+      json: filePath => JSON.parse(filePath),
+      yaml: filePath => yaml.safeLoad(filePath),
+    };
+
+    const readFile = path => fs.readFileSync(path, 'utf8');
+    const parseConfig = configActions[configFormat];
+    const args = [firstConfig, secondConfig].map(el => parseConfig(readFile(el)));
+    console.log(gendiff(...args));
   });
 
 program.parse(process.argv);
