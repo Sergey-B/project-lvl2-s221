@@ -1,6 +1,6 @@
 {
   "name": "hexlet-project",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Compares two configuration files and shows a difference.",
   "main": "dist/index.js",
   "bin": {
@@ -42,6 +42,7 @@
   },
   "dependencies": {
     "commander": "*",
+    "ini": "^1.3.5",
     "js-yaml": "^3.10.0",
     "lodash": "^4.17.5",
     "readline-sync": "^1.4.7"
