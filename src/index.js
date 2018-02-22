@@ -1,47 +1,51 @@
 import _ from 'lodash';
 import fs from 'fs';
+import path from 'path';
 import yaml from 'js-yaml';
 import ini from 'ini';
 
-const readConfig = path => fs.readFileSync(path, 'utf8');
+const readConfig = (filePath) => {
+  const configString = fs.readFileSync(filePath, 'utf8');
+  const configFormat = path.extname(filePath);
 
-const parseFunction = (path) => {
-  const [, extension] = path.split('.');
-
-  const parseFunctions = {
-    json: jsonString => JSON.parse(jsonString),
-    yaml: yamlString => yaml.safeLoad(yamlString),
-    ini: iniString => ini.decode(iniString),
-  };
-
-  return parseFunctions[extension];
+  return { data: configString, format: configFormat };
 };
 
-const parseConfig = (string, parseFn) => parseFn(string);
+const parseConfig = (string, format) => {
+  const parseFunctions = {
+    '.json': JSON.parse,
+    '.yaml': yaml.safeLoad,
+    '.ini': ini.decode,
+  };
+  const parseFn = parseFunctions[format];
+
+  return parseFn(string);
+};
 
 const buildDiff = (obj1, obj2) => {
-  const result = _.union(_.keys(obj1), _.keys(obj2)).reduce((acc, key) => {
+  const firstObjKeys = _.keys(obj1);
+  const secondObjKeys = _.keys(obj2);
+  const commonKeys = _.union(firstObjKeys, secondObjKeys);
+
+  const result = commonKeys.reduce((acc, key) => {
     if (obj1[key] === obj2[key]) {
-      const newAcc = acc.concat([`   ${key}: ${obj1[key]}`]);
-      return newAcc;
+      const diff = `   ${key}: ${obj1[key]}`;
+      return acc.concat(diff);
     }
 
     if (obj1[key] && !obj2[key]) {
-      const newAcc = acc.concat([`  - ${key}: ${obj1[key]}`]);
-      return newAcc;
+      const diff = `  - ${key}: ${obj1[key]}`;
+      return acc.concat(diff);
     }
 
     if (!obj1[key] && obj2[key]) {
-      const newAcc = acc.concat([`  + ${key}: ${obj2[key]}`]);
-      return newAcc;
+      const diff = `  + ${key}: ${obj2[key]}`;
+      return acc.concat(diff);
     }
 
     if (obj1[key] !== obj2[key]) {
-      const newAcc = acc.concat(
-        [`  + ${key}: ${obj2[key]}`],
-        [`  - ${key}: ${obj1[key]}`],
-      );
-      return newAcc;
+      const diff = [`  + ${key}: ${obj2[key]}`, `  - ${key}: ${obj1[key]}`];
+      return acc.concat(diff);
     }
 
     return acc;
@@ -53,11 +57,11 @@ const buildDiff = (obj1, obj2) => {
 const buildOutput = diffObject => `{\n ${diffObject.join('\n')}\n}\n`;
 
 const gendiff = (path1, path2) => {
-  const string1 = readConfig(path1);
-  const string2 = readConfig(path2);
+  const { data: string1, format: format1 } = readConfig(path1);
+  const { data: string2, format: format2 } = readConfig(path2);
 
-  const configObject1 = parseConfig(string1, parseFunction(path1));
-  const configObject2 = parseConfig(string2, parseFunction(path2));
+  const configObject1 = parseConfig(string1, format1);
+  const configObject2 = parseConfig(string2, format2);
 
   const diffObject = buildDiff(configObject1, configObject2);
 
