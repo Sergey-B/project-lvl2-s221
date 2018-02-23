@@ -3,16 +3,35 @@ import fs from 'fs';
 import gendiff from '../src';
 
 const buildFilePath = fileName => path.join(__dirname, `./__fixtures__/${fileName}`);
-const expectedResult = fs.readFileSync(buildFilePath('result.txt'), 'utf8');
 
-test('diff flat json', () => {
-  expect(gendiff(buildFilePath('before.json'), buildFilePath('after.json'))).toEqual(expectedResult);
+describe('diff flat configs', () => {
+  const expectedResult = fs.readFileSync(buildFilePath('flat/result.txt'), 'utf8');
+
+  test('diff json', () => {
+    expect(gendiff(buildFilePath('flat/before.json'), buildFilePath('flat/after.json'))).toEqual(expectedResult);
+  });
+
+  test('diff yaml', () => {
+    expect(gendiff(buildFilePath('flat/before.yaml'), buildFilePath('flat/after.yaml'))).toEqual(expectedResult);
+  });
+
+  test('diff ini', () => {
+    expect(gendiff(buildFilePath('flat/before.ini'), buildFilePath('flat/after.ini'))).toEqual(expectedResult);
+  });
 });
 
-test('diff flat yaml', () => {
-  expect(gendiff(buildFilePath('before.yaml'), buildFilePath('after.yaml'))).toEqual(expectedResult);
-});
+describe('diff nested configs', () => {
+  const expectedResult = fs.readFileSync(buildFilePath('nested/result.txt'), 'utf8');
 
-test('diff flat ini', () => {
-  expect(gendiff(buildFilePath('before.ini'), buildFilePath('after.ini'))).toEqual(expectedResult);
+  test('diff nested json', () => {
+    expect(gendiff(buildFilePath('nested/before.json'), buildFilePath('nested/after.json'))).toEqual(expectedResult);
+  });
+
+  test('diff yaml', () => {
+    expect(gendiff(buildFilePath('nested/before.yaml'), buildFilePath('nested/after.yaml'))).toEqual(expectedResult);
+  });
+
+  test('diff ini', () => {
+    expect(gendiff(buildFilePath('nested/before.ini'), buildFilePath('nested/after.ini'))).toEqual(expectedResult);
+  });
 });

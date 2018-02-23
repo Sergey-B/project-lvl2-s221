@@ -28,23 +28,31 @@ const buildDiff = (obj1, obj2) => {
   const commonKeys = _.union(firstObjKeys, secondObjKeys);
 
   const result = commonKeys.reduce((acc, key) => {
+    if (typeof obj1[key] === 'object' && typeof obj2[key] === 'object') {
+      const diff = ['=', key, buildDiff(obj1[key], obj2[key])];
+      return acc.concat([diff]);
+    }
+
     if (obj1[key] === obj2[key]) {
-      const diff = `   ${key}: ${obj1[key]}`;
-      return acc.concat(diff);
+      const diff = ['=', key, obj1[key]];
+      return acc.concat([diff]);
     }
 
     if (obj1[key] && !obj2[key]) {
-      const diff = `  - ${key}: ${obj1[key]}`;
-      return acc.concat(diff);
+      const diff = ['-', key, obj1[key]];
+      return acc.concat([diff]);
     }
 
     if (!obj1[key] && obj2[key]) {
-      const diff = `  + ${key}: ${obj2[key]}`;
-      return acc.concat(diff);
+      const diff = ['+', key, obj2[key]];
+      return acc.concat([diff]);
     }
 
     if (obj1[key] !== obj2[key]) {
-      const diff = [`  + ${key}: ${obj2[key]}`, `  - ${key}: ${obj1[key]}`];
+      const diff = [
+        ['+', key, obj2[key]],
+        ['-', key, obj1[key]],
+      ];
       return acc.concat(diff);
     }
 
@@ -54,7 +62,24 @@ const buildDiff = (obj1, obj2) => {
   return result;
 };
 
-const buildOutput = diffObject => `{\n ${diffObject.join('\n')}\n}\n`;
+const buildOutput = (astTree) => {
+  const iter = (acc, el) => {
+    const [state, key, children] = el;
+    const diffKey = state === '=' ? `  ${key}` : `${state} ${key}`;
+
+    if (Array.isArray(children)) {
+      return { ...acc, [diffKey]: children.reduce(iter, {}) };
+    }
+
+    return { ...acc, [diffKey]: el[2] };
+  };
+
+  const astObject = astTree.reduce(iter, {});
+  const output = JSON.stringify(astObject, null, 2)
+    .replace(/"/g, '')
+    .replace(/,/g, '');
+  return output;
+};
 
 const gendiff = (path1, path2) => {
   const { data: string1, format: format1 } = readConfig(path1);
