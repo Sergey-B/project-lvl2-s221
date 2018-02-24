@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
 import ini from 'ini';
+import getRenderer from './renderers';
 
 const readConfig = (filePath) => {
   const configString = fs.readFileSync(filePath, 'utf8');
@@ -48,21 +49,62 @@ const buildDiffAst = (obj1, obj2) => {
       return acc.concat(diff);
     }
 
-    if (obj1[key] !== obj2[key]) {
-      const diff = [
-        { state: 'added', key, value: obj2[key] },
-        { state: 'removed', key, value: obj1[key] },
-      ];
-      return acc.concat(diff);
-    }
-
-    return acc;
+    const diff = [
+      { state: 'added', key, value: obj2[key] },
+      { state: 'removed', key, value: obj1[key] },
+    ];
+    return acc.concat(diff);
   }, []);
 
   return result;
 };
 
-const buildOutput = (astTree) => {
+const renderPlainMessage = (nodes) => {
+  if (nodes.length > 1) {
+    const prevNodeState = nodes.find(n => n.state === 'removed');
+    const currentNodeState = nodes.find(n => n.state === 'added');
+    const { key, value: prevValue } = prevNodeState;
+    const { value: currentValue } = currentNodeState;
+
+    return getRenderer({ state: 'updated', key, value: [prevValue, currentValue] });
+  }
+
+  return getRenderer(nodes[0]);
+};
+
+const aggregateChangedNodes = (astTree) => {
+  const iter = (acc, pathAcc, node) => {
+    const {
+      state, key, children, value,
+    } = node;
+    const newPathAcc = [...pathAcc, key];
+
+    if (children) {
+      return acc.concat(children.reduce((iAcc, n) => iter(iAcc, newPathAcc, n), []));
+    }
+
+    if (state === 'added' || state === 'removed') {
+      const nodeWithPath = { state, key: newPathAcc.join('.'), value };
+      return acc.concat([nodeWithPath]);
+    }
+
+    return acc;
+  };
+
+  return astTree.reduce((iAcc, n) => iter(iAcc, [], n), []);
+};
+
+const buildPlainOutput = (astTree) => {
+  const changedNodes = aggregateChangedNodes(astTree);
+  const changedKeys = _.uniq(changedNodes.map(node => node.key));
+
+  return changedKeys
+    .map(key => changedNodes.filter(node => node.key === key))
+    .map(nodes => renderPlainMessage(nodes))
+    .join('\n').concat('\n');
+};
+
+const buildJsonOutput = (astTree) => {
   const iter = (acc, node) => {
     const { state, key, value } = node;
     const stateMapping = { added: '+', removed: '-', unchanged: ' ' };
@@ -83,7 +125,15 @@ const buildOutput = (astTree) => {
   return output;
 };
 
-const gendiff = (path1, path2) => {
+const buildOutput = (astTree, outputFormat = null) => {
+  if (outputFormat === 'plain') {
+    return buildPlainOutput(astTree);
+  }
+
+  return buildJsonOutput(astTree);
+};
+
+const gendiff = (path1, path2, outputFormat = null) => {
   const { data: string1, format: format1 } = readConfig(path1);
   const { data: string2, format: format2 } = readConfig(path2);
 
@@ -92,7 +142,7 @@ const gendiff = (path1, path2) => {
 
   const diffAst = buildDiffAst(configObject1, configObject2);
 
-  const output = buildOutput(diffAst);
+  const output = buildOutput(diffAst, outputFormat);
   return output;
 };
 

@@ -35,3 +35,19 @@ describe('diff nested configs', () => {
     expect(gendiff(buildFilePath('nested/before.ini'), buildFilePath('nested/after.ini'))).toEqual(expectedResult);
   });
 });
+
+describe('diff plain output', () => {
+  const expectedResult = fs.readFileSync(buildFilePath('nested/plain_result.txt'), 'utf8');
+
+  test('diff json', () => {
+    expect(gendiff(buildFilePath('nested/before.json'), buildFilePath('nested/after.json'), 'plain')).toEqual(expectedResult);
+  });
+
+  test('diff yaml', () => {
+    expect(gendiff(buildFilePath('nested/before.yaml'), buildFilePath('nested/after.yaml'), 'plain')).toEqual(expectedResult);
+  });
+
+  test('diff ini', () => {
+    expect(gendiff(buildFilePath('nested/before.ini'), buildFilePath('nested/after.ini'), 'plain')).toEqual(expectedResult);
+  });
+});
