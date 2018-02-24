@@ -22,36 +22,36 @@ const parseConfig = (string, format) => {
   return parseFn(string);
 };
 
-const buildDiff = (obj1, obj2) => {
+const buildDiffAst = (obj1, obj2) => {
   const firstObjKeys = _.keys(obj1);
   const secondObjKeys = _.keys(obj2);
   const commonKeys = _.union(firstObjKeys, secondObjKeys);
 
   const result = commonKeys.reduce((acc, key) => {
     if (typeof obj1[key] === 'object' && typeof obj2[key] === 'object') {
-      const diff = ['=', key, buildDiff(obj1[key], obj2[key])];
-      return acc.concat([diff]);
+      const diff = { state: 'unchanged', key, children: buildDiffAst(obj1[key], obj2[key]) };
+      return acc.concat(diff);
     }
 
     if (obj1[key] === obj2[key]) {
-      const diff = ['=', key, obj1[key]];
-      return acc.concat([diff]);
+      const diff = { state: 'unchanged', key, value: obj1[key] };
+      return acc.concat(diff);
     }
 
     if (obj1[key] && !obj2[key]) {
-      const diff = ['-', key, obj1[key]];
-      return acc.concat([diff]);
+      const diff = { state: 'removed', key, value: obj1[key] };
+      return acc.concat(diff);
     }
 
     if (!obj1[key] && obj2[key]) {
-      const diff = ['+', key, obj2[key]];
-      return acc.concat([diff]);
+      const diff = { state: 'added', key, value: obj2[key] };
+      return acc.concat(diff);
     }
 
     if (obj1[key] !== obj2[key]) {
       const diff = [
-        ['+', key, obj2[key]],
-        ['-', key, obj1[key]],
+        { state: 'added', key, value: obj2[key] },
+        { state: 'removed', key, value: obj1[key] },
       ];
       return acc.concat(diff);
     }
@@ -63,21 +63,23 @@ const buildDiff = (obj1, obj2) => {
 };
 
 const buildOutput = (astTree) => {
-  const iter = (acc, el) => {
-    const [state, key, children] = el;
-    const diffKey = state === '=' ? `  ${key}` : `${state} ${key}`;
+  const iter = (acc, node) => {
+    const { state, key, value } = node;
+    const stateMapping = { added: '+', removed: '-', unchanged: ' ' };
+    const outputKey = `${stateMapping[state]} ${key}`;
 
-    if (Array.isArray(children)) {
-      return { ...acc, [diffKey]: children.reduce(iter, {}) };
+    if (node.children) {
+      return { ...acc, [outputKey]: node.children.reduce(iter, {}) };
     }
 
-    return { ...acc, [diffKey]: el[2] };
+    return { ...acc, [outputKey]: value };
   };
 
-  const astObject = astTree.reduce(iter, {});
-  const output = JSON.stringify(astObject, null, 2)
+  const outputObject = astTree.reduce(iter, []);
+  const output = JSON.stringify(outputObject, null, 2)
     .replace(/"/g, '')
     .replace(/,/g, '');
+
   return output;
 };
 
@@ -88,9 +90,9 @@ const gendiff = (path1, path2) => {
   const configObject1 = parseConfig(string1, format1);
   const configObject2 = parseConfig(string2, format2);
 
-  const diffObject = buildDiff(configObject1, configObject2);
+  const diffAst = buildDiffAst(configObject1, configObject2);
 
-  const output = buildOutput(diffObject);
+  const output = buildOutput(diffAst);
   return output;
 };
 
