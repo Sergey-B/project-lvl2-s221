@@ -3,17 +3,17 @@ import renderAdded from './added';
 import renderRemoved from './removed';
 
 export default (node) => {
-  const { state } = node;
+  const { type } = node;
 
-  if (state === 'added') {
+  if (type === 'inserted') {
     return renderAdded(node);
   }
 
-  if (state === 'removed') {
+  if (type === 'deleted') {
     return renderRemoved(node);
   }
 
-  if (state === 'updated') {
+  if (type === 'changed') {
     return renderUpdated(node);
   }
 

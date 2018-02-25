@@ -1,5 +1,5 @@
 export default (node) => {
-  const { key } = node;
+  const { name } = node;
 
-  return `Property '${key}' was removed`;
+  return `Property '${name}' was removed`;
 };

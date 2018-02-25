@@ -23,86 +23,71 @@ const parseConfig = (string, format) => {
   return parseFn(string);
 };
 
+const keyTypes = [
+  {
+    type: 'nested',
+    check: (first, second, key) => (first[key] instanceof Object && second[key] instanceof Object)
+    && !(first[key] instanceof Array && second[key] instanceof Array),
+    process: (first, second, fun) => fun(first, second),
+  },
+  {
+    type: 'not changed',
+    check: (first, second, key) => (_.has(first, key) && _.has(second, key)
+      && (first[key] === second[key])),
+    process: first => _.identity(first),
+  },
+  {
+    type: 'changed',
+    check: (first, second, key) => (_.has(first, key) && _.has(second, key)
+      && (first[key] !== second[key])),
+    process: (first, second) => ({ old: first, new: second }),
+  },
+  {
+    type: 'deleted',
+    check: (first, second, key) => (_.has(first, key) && !_.has(second, key)),
+    process: first => _.identity(first),
+  },
+  {
+    type: 'inserted',
+    check: (first, second, key) => (!_.has(first, key) && _.has(second, key)),
+    process: (first, second) => _.identity(second),
+  },
+];
+
 const buildDiffAst = (obj1, obj2) => {
   const firstObjKeys = _.keys(obj1);
   const secondObjKeys = _.keys(obj2);
   const commonKeys = _.union(firstObjKeys, secondObjKeys);
 
-  const result = commonKeys.reduce((acc, key) => {
-    if (typeof obj1[key] === 'object' && typeof obj2[key] === 'object') {
-      const diff = { state: 'unchanged', key, children: buildDiffAst(obj1[key], obj2[key]) };
-      return [...acc, diff];
-    }
-
-    if (obj1[key] === obj2[key]) {
-      const diff = { state: 'unchanged', key, value: obj1[key] };
-      return [...acc, diff];
-    }
-
-    if (_.has(obj1, key) && !_.has(obj2, key)) {
-      const diff = { state: 'removed', key, value: obj1[key] };
-      return [...acc, diff];
-    }
-
-    if (!_.has(obj1, key) && _.has(obj2, key)) {
-      const diff = { state: 'added', key, value: obj2[key] };
-      return [...acc, diff];
-    }
-
-    const diff = [
-      { state: 'added', key, value: obj2[key] },
-      { state: 'removed', key, value: obj1[key] },
-    ];
-    return [...acc, ...diff];
-  }, []);
-
-  return result;
+  return commonKeys.map((key) => {
+    const { type, process } = _.find(keyTypes, item => item.check(obj1, obj2, key));
+    const value = process(obj1[key], obj2[key], buildDiffAst);
+    return { name: key, type, value };
+  });
 };
 
 const aggregateNodesWithPath = (astTree) => {
   const iter = (acc, pathAcc, node) => {
     const {
-      state, key, children, value,
+      type, name, value,
     } = node;
-    const newPathAcc = [...pathAcc, key];
+    const newPathAcc = [...pathAcc, name];
 
-    if (children) {
-      return [...acc, ...children.reduce((iAcc, n) => iter(iAcc, newPathAcc, n), [])];
+    if (node.type === 'nested') {
+      return [...acc, ...node.value.reduce((iAcc, n) => iter(iAcc, newPathAcc, n), [])];
     }
 
-    const nodeWithPath = { state, key: newPathAcc.join('.'), value };
+    const nodeWithPath = { type, name: newPathAcc.join('.'), value };
     return [...acc, nodeWithPath];
   };
 
   return astTree.reduce((iAcc, n) => iter(iAcc, [], n), []);
 };
 
-const toAstWithUpdated = (astTree) => {
-  const toNodeWithUpdated = (nodes) => {
-    if (nodes.length > 1) {
-      const prevNodeState = nodes.find(n => n.state === 'removed');
-      const currentNodeState = nodes.find(n => n.state === 'added');
-      const { key, value: prevValue } = prevNodeState;
-      const { value: currentValue } = currentNodeState;
-
-      return { state: 'updated', key, value: [prevValue, currentValue] };
-    }
-
-    return nodes[0];
-  };
-
-  const astTreeKeys = _.uniq(astTree.map(node => node.key));
-
-  return astTreeKeys
-    .map(key => astTree.filter(node => node.key === key))
-    .map(nodes => toNodeWithUpdated(nodes));
-};
-
 const buildPlainOutput = (astTree) => {
-  const changedNodes = aggregateNodesWithPath(astTree).filter(node => node.state === 'added' || node.state === 'removed');
-  const nodesWithUpdated = toAstWithUpdated(changedNodes);
+  const changedNodes = aggregateNodesWithPath(astTree).filter(node => node.type === 'inserted' || node.type === 'deleted' || node.type === 'changed');
 
-  return nodesWithUpdated
+  return changedNodes
     .map(node => getRenderer(node))
     .join('\n')
     .concat('\n');
@@ -110,12 +95,18 @@ const buildPlainOutput = (astTree) => {
 
 const buildSimpleOutput = (astTree) => {
   const iter = (acc, node) => {
-    const { state, key, value } = node;
-    const stateMapping = { added: '+', removed: '-', unchanged: ' ' };
-    const outputKey = `${stateMapping[state]} ${key}`;
+    const { type, name, value } = node;
+    const typeMapping = {
+      inserted: '+', deleted: '-', 'not changed': ' ', nested: ' ',
+    };
+    const outputKey = `${typeMapping[type]} ${name}`;
 
-    if (node.children) {
-      return { ...acc, [outputKey]: node.children.reduce(iter, {}) };
+    if (node.type === 'nested') {
+      return { ...acc, [outputKey]: node.value.reduce(iter, {}) };
+    }
+
+    if (node.type === 'changed') {
+      return { ...acc, [`+ ${name}`]: node.value.new, [`- ${name}`]: node.value.old };
     }
 
     return { ...acc, [outputKey]: value };
@@ -130,19 +121,18 @@ const buildSimpleOutput = (astTree) => {
 };
 
 const nodesToJsonOutput = (node) => {
-  const { key } = node;
+  const { name } = node;
   const changesString = getRenderer(node);
   const changes = changesString ? [changesString] : [];
 
-  return { key, changes };
+  return { name, changes };
 };
 
 const buildJsonOutput = (astTree) => {
   const nodesWithPath = aggregateNodesWithPath(astTree);
-  const nodesWithUpdated = toAstWithUpdated(nodesWithPath);
-  const outputObject = nodesWithUpdated.map(node => nodesToJsonOutput(node));
+  const outputObject = nodesWithPath.map(node => nodesToJsonOutput(node));
 
-  return JSON.stringify(outputObject).concat('\n');
+  return JSON.stringify(outputObject);
 };
 
 const buildOutput = (astTree, outputFormat = null) => {
