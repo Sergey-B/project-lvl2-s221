@@ -59,19 +59,6 @@ const buildDiffAst = (obj1, obj2) => {
   return result;
 };
 
-const renderPlainMessage = (nodes) => {
-  if (nodes.length > 1) {
-    const prevNodeState = nodes.find(n => n.state === 'removed');
-    const currentNodeState = nodes.find(n => n.state === 'added');
-    const { key, value: prevValue } = prevNodeState;
-    const { value: currentValue } = currentNodeState;
-
-    return getRenderer({ state: 'updated', key, value: [prevValue, currentValue] });
-  }
-
-  return getRenderer(nodes[0]);
-};
-
 const aggregateChangedNodes = (astTree) => {
   const iter = (acc, pathAcc, node) => {
     const {
@@ -94,14 +81,29 @@ const aggregateChangedNodes = (astTree) => {
   return astTree.reduce((iAcc, n) => iter(iAcc, [], n), []);
 };
 
+const prepareNodes = (nodes) => {
+  if (nodes.length > 1) {
+    const prevNodeState = nodes.find(n => n.state === 'removed');
+    const currentNodeState = nodes.find(n => n.state === 'added');
+    const { key, value: prevValue } = prevNodeState;
+    const { value: currentValue } = currentNodeState;
+
+    return { state: 'updated', key, value: [prevValue, currentValue] };
+  }
+
+  return nodes[0];
+};
+
 const buildPlainOutput = (astTree) => {
   const changedNodes = aggregateChangedNodes(astTree);
   const changedKeys = _.uniq(changedNodes.map(node => node.key));
 
   return changedKeys
     .map(key => changedNodes.filter(node => node.key === key))
-    .map(nodes => renderPlainMessage(nodes))
-    .join('\n').concat('\n');
+    .map(nodes => prepareNodes(nodes))
+    .map(node => getRenderer(node))
+    .join('\n')
+    .concat('\n');
 };
 
 const buildJsonOutput = (astTree) => {

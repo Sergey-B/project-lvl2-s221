@@ -3,15 +3,15 @@ import renderAdded from './added';
 import renderRemoved from './removed';
 
 export default (node) => {
-  const { state, key, value } = node;
+  const { state } = node;
 
   if (state === 'added') {
-    return renderAdded(key, value);
+    return renderAdded(node);
   }
 
   if (state === 'removed') {
-    return renderRemoved(key);
+    return renderRemoved(node);
   }
 
-  return renderUpdated(key, value);
+  return renderUpdated(node);
 };
