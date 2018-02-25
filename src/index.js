@@ -40,7 +40,7 @@ const keyTypes = [
     type: 'changed',
     check: (first, second, key) => (_.has(first, key) && _.has(second, key)
       && (first[key] !== second[key])),
-    process: (first, second) => ({ old: first, new: second }),
+    process: (first, second) => ([first, second]),
   },
   {
     type: 'deleted',
@@ -60,16 +60,24 @@ const buildDiffAst = (obj1, obj2) => {
   const commonKeys = _.union(firstObjKeys, secondObjKeys);
 
   return commonKeys.reduce((acc, key) => {
-    const { type, process } = _.find(keyTypes, item => item.check(obj1, obj2, key));
-    const value = process(obj1[key], obj2[key], buildDiffAst);
+    if (typeof obj1[key] === 'object' && typeof obj2[key] === 'object') { 
+      return [...acc, { type: 'nested', name: key, children: buildDiffAst(obj1[key], obj2[key]) }]; 
+    } 
+ 
+    if (obj1[key] === obj2[key]) { 
+      return [...acc, { type: 'not changed', name: key, oldValue: obj1[key] }]; 
+    } 
+ 
+    if (_.has(obj1, key) && !_.has(obj2, key)) { 
+      return [...acc, { type: 'deleted', name: key, oldValue: obj1[key] }]; 
+    } 
+ 
+    if (!_.has(obj1, key) && _.has(obj2, key)) { 
+      return [...acc, { type: 'inserted', name: key, newValue: obj2[key] }]; 
+    }
 
-    return [...acc, { name: key, type, value }];
+    return [...acc, { type: 'changed', name: key, newValue: obj2[key], oldValue: obj1[key] }];
   }, []);
-};
-
-const buildOutput = (astTree, outputFormat = null) => {
-  const renderOutput = getRenderer(outputFormat);
-  return renderOutput(astTree);
 };
 
 const gendiff = (path1, path2, outputFormat = null) => {
@@ -80,9 +88,8 @@ const gendiff = (path1, path2, outputFormat = null) => {
   const configObject2 = parseConfig(string2, format2);
 
   const ast = buildDiffAst(configObject1, configObject2);
-  const output = buildOutput(ast, outputFormat);
-
-  return output;
+  const renderOutput = getRenderer(outputFormat);
+  return renderOutput(ast);
 };
 
 export default gendiff;
