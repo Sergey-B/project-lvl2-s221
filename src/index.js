@@ -31,29 +31,29 @@ const buildDiffAst = (obj1, obj2) => {
   const result = commonKeys.reduce((acc, key) => {
     if (typeof obj1[key] === 'object' && typeof obj2[key] === 'object') {
       const diff = { state: 'unchanged', key, children: buildDiffAst(obj1[key], obj2[key]) };
-      return acc.concat(diff);
+      return [...acc, diff];
     }
 
     if (obj1[key] === obj2[key]) {
       const diff = { state: 'unchanged', key, value: obj1[key] };
-      return acc.concat(diff);
+      return [...acc, diff];
     }
 
-    if (obj1[key] && !obj2[key]) {
+    if (_.has(obj1, key) && !_.has(obj2, key)) {
       const diff = { state: 'removed', key, value: obj1[key] };
-      return acc.concat(diff);
+      return [...acc, diff];
     }
 
-    if (!obj1[key] && obj2[key]) {
+    if (!_.has(obj1, key) && _.has(obj2, key)) {
       const diff = { state: 'added', key, value: obj2[key] };
-      return acc.concat(diff);
+      return [...acc, diff];
     }
 
     const diff = [
       { state: 'added', key, value: obj2[key] },
       { state: 'removed', key, value: obj1[key] },
     ];
-    return acc.concat(diff);
+    return [...acc, ...diff];
   }, []);
 
   return result;
