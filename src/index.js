@@ -59,86 +59,17 @@ const buildDiffAst = (obj1, obj2) => {
   const secondObjKeys = _.keys(obj2);
   const commonKeys = _.union(firstObjKeys, secondObjKeys);
 
-  return commonKeys.map((key) => {
+  return commonKeys.reduce((acc, key) => {
     const { type, process } = _.find(keyTypes, item => item.check(obj1, obj2, key));
     const value = process(obj1[key], obj2[key], buildDiffAst);
-    return { name: key, type, value };
-  });
-};
 
-const aggregateNodesWithPath = (astTree) => {
-  const iter = (acc, pathAcc, node) => {
-    const {
-      type, name, value,
-    } = node;
-    const newPathAcc = [...pathAcc, name];
-
-    if (node.type === 'nested') {
-      return [...acc, ...node.value.reduce((iAcc, n) => iter(iAcc, newPathAcc, n), [])];
-    }
-
-    const nodeWithPath = { type, name: newPathAcc.join('.'), value };
-    return [...acc, nodeWithPath];
-  };
-
-  return astTree.reduce((iAcc, n) => iter(iAcc, [], n), []);
-};
-
-const buildPlainOutput = (astTree) => {
-  const changedNodes = aggregateNodesWithPath(astTree).filter(node => node.type === 'inserted' || node.type === 'deleted' || node.type === 'changed');
-
-  return changedNodes
-    .map((node) => {
-      const render = getRenderer(node.type);
-      return render(node);
-    })
-    .join('\n')
-    .concat('\n');
-};
-
-const buildSimpleOutput = (astTree) => {
-  const iter = (acc, node) => {
-    const { type, name, value } = node;
-    const typeMapping = {
-      inserted: '+', deleted: '-', 'not changed': ' ', nested: ' ',
-    };
-    const outputKey = `${typeMapping[type]} ${name}`;
-
-    if (node.type === 'nested') {
-      return { ...acc, [outputKey]: node.value.reduce(iter, {}) };
-    }
-
-    if (node.type === 'changed') {
-      return { ...acc, [`+ ${name}`]: node.value.new, [`- ${name}`]: node.value.old };
-    }
-
-    return { ...acc, [outputKey]: value };
-  };
-
-  const outputObject = astTree.reduce(iter, []);
-  const output = JSON.stringify(outputObject, null, 2)
-    .replace(/"/g, '')
-    .replace(/,/g, '');
-
-  return output;
-};
-
-const buildJsonOutput = (astTree) => {
-  const nodesWithPath = aggregateNodesWithPath(astTree);
-
-  return JSON.stringify(nodesWithPath);
+    return [...acc, { name: key, type, value }];
+  }, []);
 };
 
 const buildOutput = (astTree, outputFormat = null) => {
-  if (outputFormat === 'plain') {
-    return buildPlainOutput(astTree);
-  }
-
-  if (outputFormat === 'json') {
-    return buildJsonOutput(astTree);
-  }
-
-  return buildSimpleOutput(astTree);
+  const renderOutput = getRenderer(outputFormat);
+  return renderOutput(astTree);
 };
 
 const gendiff = (path1, path2, outputFormat = null) => {
@@ -148,9 +79,9 @@ const gendiff = (path1, path2, outputFormat = null) => {
   const configObject1 = parseConfig(string1, format1);
   const configObject2 = parseConfig(string2, format2);
 
-  const diffAst = buildDiffAst(configObject1, configObject2);
+  const ast = buildDiffAst(configObject1, configObject2);
+  const output = buildOutput(ast, outputFormat);
 
-  const output = buildOutput(diffAst, outputFormat);
   return output;
 };
 

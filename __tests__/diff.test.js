@@ -27,11 +27,11 @@ describe('diff nested configs', () => {
     expect(gendiff(buildFilePath('nested/before.json'), buildFilePath('nested/after.json'))).toEqual(expectedResult);
   });
 
-  test('diff yaml', () => {
+  test('diff nested yaml', () => {
     expect(gendiff(buildFilePath('nested/before.yaml'), buildFilePath('nested/after.yaml'))).toEqual(expectedResult);
   });
 
-  test('diff ini', () => {
+  test('diff nested ini', () => {
     expect(gendiff(buildFilePath('nested/before.ini'), buildFilePath('nested/after.ini'))).toEqual(expectedResult);
   });
 });
