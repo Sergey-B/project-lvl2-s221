@@ -59,7 +59,7 @@ const buildDiffAst = (obj1, obj2) => {
   return result;
 };
 
-const aggregateChangedNodes = (astTree) => {
+const aggregateNodesWithPath = (astTree) => {
   const iter = (acc, pathAcc, node) => {
     const {
       state, key, children, value,
@@ -67,46 +67,48 @@ const aggregateChangedNodes = (astTree) => {
     const newPathAcc = [...pathAcc, key];
 
     if (children) {
-      return acc.concat(children.reduce((iAcc, n) => iter(iAcc, newPathAcc, n), []));
+      return [...acc, ...children.reduce((iAcc, n) => iter(iAcc, newPathAcc, n), [])];
     }
 
-    if (state === 'added' || state === 'removed') {
-      const nodeWithPath = { state, key: newPathAcc.join('.'), value };
-      return acc.concat([nodeWithPath]);
-    }
-
-    return acc;
+    const nodeWithPath = { state, key: newPathAcc.join('.'), value };
+    return [...acc, nodeWithPath];
   };
 
   return astTree.reduce((iAcc, n) => iter(iAcc, [], n), []);
 };
 
-const prepareNodes = (nodes) => {
-  if (nodes.length > 1) {
-    const prevNodeState = nodes.find(n => n.state === 'removed');
-    const currentNodeState = nodes.find(n => n.state === 'added');
-    const { key, value: prevValue } = prevNodeState;
-    const { value: currentValue } = currentNodeState;
+const toAstWithUpdated = (astTree) => {
+  const toNodeWithUpdated = (nodes) => {
+    if (nodes.length > 1) {
+      const prevNodeState = nodes.find(n => n.state === 'removed');
+      const currentNodeState = nodes.find(n => n.state === 'added');
+      const { key, value: prevValue } = prevNodeState;
+      const { value: currentValue } = currentNodeState;
 
-    return { state: 'updated', key, value: [prevValue, currentValue] };
-  }
+      return { state: 'updated', key, value: [prevValue, currentValue] };
+    }
 
-  return nodes[0];
+    return nodes[0];
+  };
+
+  const astTreeKeys = _.uniq(astTree.map(node => node.key));
+
+  return astTreeKeys
+    .map(key => astTree.filter(node => node.key === key))
+    .map(nodes => toNodeWithUpdated(nodes));
 };
 
 const buildPlainOutput = (astTree) => {
-  const changedNodes = aggregateChangedNodes(astTree);
-  const changedKeys = _.uniq(changedNodes.map(node => node.key));
+  const changedNodes = aggregateNodesWithPath(astTree).filter(node => node.state === 'added' || node.state === 'removed');
+  const nodesWithUpdated = toAstWithUpdated(changedNodes);
 
-  return changedKeys
-    .map(key => changedNodes.filter(node => node.key === key))
-    .map(nodes => prepareNodes(nodes))
+  return nodesWithUpdated
     .map(node => getRenderer(node))
     .join('\n')
     .concat('\n');
 };
 
-const buildJsonOutput = (astTree) => {
+const buildSimpleOutput = (astTree) => {
   const iter = (acc, node) => {
     const { state, key, value } = node;
     const stateMapping = { added: '+', removed: '-', unchanged: ' ' };
@@ -127,12 +129,32 @@ const buildJsonOutput = (astTree) => {
   return output;
 };
 
+const nodesToJsonOutput = (node) => {
+  const { key } = node;
+  const changesString = getRenderer(node);
+  const changes = changesString ? [changesString] : [];
+
+  return { key, changes };
+};
+
+const buildJsonOutput = (astTree) => {
+  const nodesWithPath = aggregateNodesWithPath(astTree);
+  const nodesWithUpdated = toAstWithUpdated(nodesWithPath);
+  const outputObject = nodesWithUpdated.map(node => nodesToJsonOutput(node));
+
+  return JSON.stringify(outputObject).concat('\n');
+};
+
 const buildOutput = (astTree, outputFormat = null) => {
   if (outputFormat === 'plain') {
     return buildPlainOutput(astTree);
   }
 
-  return buildJsonOutput(astTree);
+  if (outputFormat === 'json') {
+    return buildJsonOutput(astTree);
+  }
+
+  return buildSimpleOutput(astTree);
 };
 
 const gendiff = (path1, path2, outputFormat = null) => {

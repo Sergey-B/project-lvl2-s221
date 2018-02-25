@@ -13,5 +13,9 @@ export default (node) => {
     return renderRemoved(node);
   }
 
-  return renderUpdated(node);
+  if (state === 'updated') {
+    return renderUpdated(node);
+  }
+
+  return null;
 };
