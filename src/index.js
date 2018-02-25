@@ -23,60 +23,35 @@ const parseConfig = (string, format) => {
   return parseFn(string);
 };
 
-const keyTypes = [
-  {
-    type: 'nested',
-    check: (first, second, key) => (first[key] instanceof Object && second[key] instanceof Object)
-    && !(first[key] instanceof Array && second[key] instanceof Array),
-    process: (first, second, fun) => fun(first, second),
-  },
-  {
-    type: 'not changed',
-    check: (first, second, key) => (_.has(first, key) && _.has(second, key)
-      && (first[key] === second[key])),
-    process: first => _.identity(first),
-  },
-  {
-    type: 'changed',
-    check: (first, second, key) => (_.has(first, key) && _.has(second, key)
-      && (first[key] !== second[key])),
-    process: (first, second) => ([first, second]),
-  },
-  {
-    type: 'deleted',
-    check: (first, second, key) => (_.has(first, key) && !_.has(second, key)),
-    process: first => _.identity(first),
-  },
-  {
-    type: 'inserted',
-    check: (first, second, key) => (!_.has(first, key) && _.has(second, key)),
-    process: (first, second) => _.identity(second),
-  },
-];
-
 const buildDiffAst = (obj1, obj2) => {
   const firstObjKeys = _.keys(obj1);
   const secondObjKeys = _.keys(obj2);
   const commonKeys = _.union(firstObjKeys, secondObjKeys);
 
   return commonKeys.reduce((acc, key) => {
-    if (typeof obj1[key] === 'object' && typeof obj2[key] === 'object') { 
-      return [...acc, { type: 'nested', name: key, children: buildDiffAst(obj1[key], obj2[key]) }]; 
-    } 
- 
-    if (obj1[key] === obj2[key]) { 
-      return [...acc, { type: 'not changed', name: key, oldValue: obj1[key] }]; 
-    } 
- 
-    if (_.has(obj1, key) && !_.has(obj2, key)) { 
-      return [...acc, { type: 'deleted', name: key, oldValue: obj1[key] }]; 
-    } 
- 
-    if (!_.has(obj1, key) && _.has(obj2, key)) { 
-      return [...acc, { type: 'inserted', name: key, newValue: obj2[key] }]; 
+    if (typeof obj1[key] === 'object' && typeof obj2[key] === 'object') {
+      const diff = { type: 'nested', name: key, children: buildDiffAst(obj1[key], obj2[key]) };
+      return [...acc, diff];
     }
 
-    return [...acc, { type: 'changed', name: key, newValue: obj2[key], oldValue: obj1[key] }];
+    if (obj1[key] === obj2[key]) {
+      const diff = { type: 'not changed', name: key, oldValue: obj1[key] };
+      return [...acc, diff];
+    }
+
+    if (_.has(obj1, key) && !_.has(obj2, key)) {
+      const diff = { type: 'deleted', name: key, oldValue: obj1[key] };
+      return [...acc, diff];
+    }
+
+    if (!_.has(obj1, key) && _.has(obj2, key)) {
+      const diff = { type: 'inserted', name: key, newValue: obj2[key] };
+      return [...acc, diff];
+    }
+
+    return [...acc, {
+      type: 'changed', name: key, newValue: obj2[key], oldValue: obj1[key],
+    }];
   }, []);
 };
 

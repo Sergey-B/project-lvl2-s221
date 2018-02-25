@@ -3,19 +3,22 @@ import _ from 'lodash';
 const renderChanged = (node) => {
   const { name, oldValue, newValue } = node;
   const [prevValue, currentValue] = [oldValue, newValue].map((v) => {
-    const valueString = (typeof v) === 'object' ? JSON.stringify(v) : v;
-    return valueString;
+    const output = (typeof v) === 'object' ? JSON.stringify(v) : v;
+    return output;
   });
 
   return `Property '${name}' was updated. From '${prevValue}' to '${currentValue}'`;
 };
 
-const valueString = value => (typeof value === 'object') ? `complex value: ${JSON.stringify(value)}` : `value: ${value}`;
+const valueString = (value) => {
+  const output = (typeof value === 'object') ? `complex value: ${JSON.stringify(value)}` : `value: ${value}`;
+  return output;
+};
 
 const renderPlain = (ast) => {
   const iter = (acc, pathAcc, node) => {
     const {
-      type, name, oldValue, newValue, children
+      type, name, oldValue, newValue, children,
     } = node;
     const fullPathAcc = [...pathAcc, name];
     const fullPath = fullPathAcc.join('.');
@@ -25,18 +28,18 @@ const renderPlain = (ast) => {
     }
 
     if (node.type === 'changed') {
-      const rendered = renderChanged({ type, name: fullPath, oldValue, newValue, children });
+      const rendered = renderChanged({
+        type, name: fullPath, oldValue, newValue, children,
+      });
       return [...acc, rendered];
     }
 
     if (node.type === 'inserted') {
-      const rendered = `Property ${fullPath} was added with ${valueString(newValue)}`
-      return [...acc, rendered];
+      return [...acc, `Property ${fullPath} was added with ${valueString(newValue)}`];
     }
 
     if (node.type === 'deleted') {
-      const rendered = `Property '${fullPath}' was removed`;
-      return [...acc, rendered];
+      return [...acc, `Property '${fullPath}' was removed`];
     }
 
     return acc;
