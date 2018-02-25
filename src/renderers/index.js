@@ -1,20 +1,22 @@
-import renderUpdated from './updated';
-import renderAdded from './added';
-import renderRemoved from './removed';
+import renderChanged from './changed';
+import renderInserted from './inserted';
+import renderDeleted from './deleted';
 
-export default (node) => {
-  const { type } = node;
-
+export default (type) => {
   if (type === 'inserted') {
-    return renderAdded(node);
+    return renderInserted;
   }
 
   if (type === 'deleted') {
-    return renderRemoved(node);
+    return renderDeleted;
   }
 
   if (type === 'changed') {
-    return renderUpdated(node);
+    return renderChanged;
+  }
+
+  if (type === 'not changed' || type === 'nested') {
+    return () => null;
   }
 
   return null;

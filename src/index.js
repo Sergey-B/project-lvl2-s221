@@ -88,7 +88,10 @@ const buildPlainOutput = (astTree) => {
   const changedNodes = aggregateNodesWithPath(astTree).filter(node => node.type === 'inserted' || node.type === 'deleted' || node.type === 'changed');
 
   return changedNodes
-    .map(node => getRenderer(node))
+    .map((node) => {
+      const render = getRenderer(node.type);
+      return render(node);
+    })
     .join('\n')
     .concat('\n');
 };
@@ -120,19 +123,10 @@ const buildSimpleOutput = (astTree) => {
   return output;
 };
 
-const nodesToJsonOutput = (node) => {
-  const { name } = node;
-  const changesString = getRenderer(node);
-  const changes = changesString ? [changesString] : [];
-
-  return { name, changes };
-};
-
 const buildJsonOutput = (astTree) => {
   const nodesWithPath = aggregateNodesWithPath(astTree);
-  const outputObject = nodesWithPath.map(node => nodesToJsonOutput(node));
 
-  return JSON.stringify(outputObject);
+  return JSON.stringify(nodesWithPath);
 };
 
 const buildOutput = (astTree, outputFormat = null) => {
